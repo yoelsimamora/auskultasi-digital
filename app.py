@@ -246,19 +246,41 @@ except Exception as e:
 tab_analisis, tab_bunyi, tab_model = st.tabs(["Analisis rekaman", "Kenali bunyi paru", "Tentang model"])
 
 with tab_analisis:
-    kiri, kanan = st.columns(2)
-    wav_up = kiri.file_uploader("Rekaman stetoskop (.wav)", type=["wav"])
-    txt_up = kanan.file_uploader(
-        "Anotasi siklus napas (.txt, opsional)", type=["txt"],
-        help="Format ICBHI: satu siklus per baris, berisi waktu mulai dan selesai dalam detik. "
-             "Tanpa anotasi, rekaman dipotong dengan panjang tetap.",
-    )
+    mode = st.segmented_control(
+        "Sumber suara", ["Unggah file", "Rekam langsung"], default="Unggah file",
+        selection_mode="single", key="mode_sumber",
+    ) or "Unggah file"
+
+    txt_up = None
+    if mode == "Unggah file":
+        kiri, kanan = st.columns(2)
+        wav_up = kiri.file_uploader("Rekaman stetoskop (.wav)", type=["wav"])
+        txt_up = kanan.file_uploader(
+            "Anotasi siklus napas (.txt, opsional)", type=["txt"],
+            help="Format ICBHI: satu siklus per baris, berisi waktu mulai dan selesai dalam detik. "
+                 "Tanpa anotasi, rekaman dipotong dengan panjang tetap.",
+        )
+        petunjuk = ("Unggah file .wav untuk memulai. Anda bisa memakai rekaman dari folder audio_and_txt_files "
+                    "di dataset ICBHI beserta file .txt dengan nama yang sama.")
+    else:
+        st.markdown(
+            '<p class="catatan">Tekan tombol mikrofon, izinkan akses mikrofon di browser, lalu bernapas '
+            'perlahan dan dalam selama 15 sampai 20 detik. Tekan lagi untuk berhenti. Hasil terbaik didapat '
+            'dengan stetoskop digital yang tersambung ke komputer atau ponsel, di ruangan yang tenang.</p>',
+            unsafe_allow_html=True,
+        )
+        wav_up = st.audio_input("Rekam suara napas", sample_rate=16000)
+        petunjuk = "Belum ada rekaman. Tekan tombol mikrofon untuk mulai merekam."
+        st.warning(
+            "Model dilatih dengan rekaman stetoskop. Suara dari mikrofon laptop atau ponsel biasa berbeda "
+            "karakternya, sehingga hasil prediksi dari rekaman ini hanya untuk demonstrasi."
+        )
 
     if wav_up is None:
-        st.info("Unggah file .wav untuk memulai. Anda bisa memakai rekaman dari folder audio_and_txt_files "
-                "di dataset ICBHI beserta file .txt dengan nama yang sama.")
+        st.info(petunjuk)
     else:
         audio = wav_up.getvalue()
+        nama_file = "rekaman_mikrofon.wav" if mode == "Rekam langsung" else wav_up.name
         wav_path = simpan_sementara(wav_up, ".wav")
         txt_path = simpan_sementara(txt_up, ".txt") if txt_up is not None else None
         hasil = None
@@ -271,7 +293,11 @@ with tab_analisis:
                 segmen = segmen_jendela_tetap(durasi, panjang=panjang_jendela)
                 sumber = (f"potongan tetap {panjang_jendela:g} detik. Unggah anotasi siklus "
                           f"agar hasil lebih sesuai cara model dilatih")
-            if not segmen:
+            if durasi < 3:
+                segmen = []
+                st.error(f"Rekaman terlalu pendek ({durasi:.1f} detik). Rekam minimal beberapa siklus napas, "
+                         f"sekitar 15 detik.")
+            elif not segmen:
                 st.error("Tidak ada siklus yang berada dalam durasi rekaman. Periksa waktu pada file anotasi.")
             else:
                 with st.spinner("Menganalisis rekaman..."):
@@ -318,7 +344,7 @@ with tab_analisis:
                 },
             )
             st.download_button("Unduh hasil (.csv)", tampil.to_csv(index=False).encode("utf-8"),
-                               file_name=f"hasil_{Path(wav_up.name).stem}.csv", mime="text/csv")
+                               file_name=f"hasil_{Path(nama_file).stem}.csv", mime="text/csv")
 
 with tab_bunyi:
     st.markdown("Empat kategori siklus napas yang dipakai dalam dataset ICBHI 2017:")
