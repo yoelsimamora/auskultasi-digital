@@ -1,0 +1,5 @@
+Salin dari Google Drive (MyDrive/ICBHI_2017/deploy/) ke folder ini:
+  - model_terbaik_4kelas.joblib
+  - model_terbaik_biner.joblib
+  - ringkasan_cv.csv   (opsional, ditampilkan di tab "Tentang model")
+File ini boleh dihapus setelah model dimasukkan.
